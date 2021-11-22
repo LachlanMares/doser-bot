@@ -12,6 +12,7 @@
 #define M2_BIT 4
 #define ENABLE_BIT 5
 #define RESET_BIT 6
+#define RUNNING_BIT 6
 #define SLEEP_BIT 7
 
 #define IO_DIRECTION 0xFD
@@ -45,17 +46,24 @@
 #define MCP23017_GPPUB       0x0D
 
 
-struct motor_struct {
+struct motor_command_struct {
 
   boolean direction;
-  boolean running;
-  boolean fault;
-
   uint8_t microstep;
-
   unsigned long pulse_interval;
-  unsigned long pulses_remaining;
+  unsigned long pulses;
   unsigned long pulse_on_period;
+};
+
+struct motor_status_struct {
+  boolean enabled;
+  boolean running;
+  boolean sleep;
+  boolean fault;
+  boolean direction;
+  boolean output_state;
+  uint8_t microstep;
+  unsigned long pulses_remaining;
 };
 
 class MotorInterface
@@ -73,7 +81,8 @@ public:
         void StopJob();
         void Update(unsigned long);
         uint8_t Status();
-        motor_struct variables;
+        motor_command_struct command_variables;
+        motor_status_struct status_variables;
 
 private:
         void Wake();
@@ -85,8 +94,6 @@ private:
         void WriteIORegister(uint8_t);
         void WriteDirectionRegister(uint8_t);
         void WritePullUpRegister(uint8_t);
-
-        boolean _output_state, _enabled, _sleep;
         uint8_t _current_io, _direction_register, _io_register, _pull_up_register, _step_divisor;
         int _i2c_addr, _step_pin;
         unsigned long _pulse_on_micros, _pulse_off_micros, _last_micros, _last_fault_check_micros, _fault_check_interval;

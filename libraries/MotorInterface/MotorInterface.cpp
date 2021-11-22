@@ -23,21 +23,26 @@ void MotorInterface::Initialise(int i2c_address, int pin, uint8_t bank)
             _pull_up_register = MCP23017_GPPUB;
         }
 
-    _output_state = false;
-    _enabled = false;
-    _sleep = false;
     _fault_check_interval = 1000000;
     _last_fault_check_micros = micros();
 
-    variables.direction = false;
-    variables.running = false;
-    variables.fault = false;
-    variables.microstep = 1;
-    variables.pulses_remaining = 0;
-    variables.pulse_interval = DEFAULT_PULSE_INTERVAL;
-    variables.pulse_on_period = DEFAULT_PULSE_ON_PERIOD;
 
-    SetMicroStep(variables.microstep);
+    status_variables.enabled = false;
+    status_variables.output_state = false;
+
+    status_variables.direction = false;
+    status_variables.running = false;
+    status_variables.fault = false;
+    status_variables.microstep = 1;
+    status_variables.pulses_remaining = 0;
+
+    command_variables.direction = false;
+    command_variables.microstep = 1;
+    command_variables.pulses = 0;
+    command_variables.pulse_interval = DEFAULT_PULSE_INTERVAL;
+    command_variables.pulse_on_period = DEFAULT_PULSE_ON_PERIOD;
+
+    SetMicroStep(status_variables.microstep);
 
     pinMode(_step_pin, OUTPUT);
     digitalWrite(_step_pin, LOW);
@@ -48,7 +53,8 @@ void MotorInterface::Initialise(int i2c_address, int pin, uint8_t bank)
 
 void MotorInterface::Enable()
 {
-    _enabled = true;
+    status_variables.enabled = true;
+
     ReadIORegister();
 
     if(!bitRead(_current_io, ENABLE_BIT))
@@ -60,7 +66,8 @@ void MotorInterface::Enable()
 
 void MotorInterface::Disable()
 {
-    _enabled = false;
+    status_variables.enabled = false;
+
     ReadIORegister();
 
     if(bitRead(_current_io, ENABLE_BIT))
@@ -72,7 +79,8 @@ void MotorInterface::Disable()
 
 void MotorInterface::Wake()
 {
-    _sleep = false;
+    status_variables.sleep = false;
+
     ReadIORegister();
 
     if(bitRead(_current_io, SLEEP_BIT))
@@ -84,7 +92,8 @@ void MotorInterface::Wake()
 
 void MotorInterface::Sleep()
 {
-    _sleep = true;
+    status_variables.sleep = true;
+
     ReadIORegister();
 
     if(!bitRead(_current_io, SLEEP_BIT))
@@ -116,13 +125,13 @@ void MotorInterface::Direction(uint8_t dir)
 
     if(dir == 0 || dir == CW)
     {
-        variables.direction = false;
+        command_variables.direction = false;
         bitClear(_current_io, DIRECTION_BIT);
         WriteIORegister(_current_io);
 
     } else if(dir == 1 || dir == CCW)
         {
-            variables.direction = true;
+            command_variables.direction = true;
             bitSet(_current_io, DIRECTION_BIT);
             WriteIORegister(_current_io);
         }
@@ -130,15 +139,12 @@ void MotorInterface::Direction(uint8_t dir)
 
 void MotorInterface::SetMicroStep(uint8_t step_divisor)
 {
-    ReadIORegister();
-    variables.microstep = step_divisor;
-    _current_io = DecodeMicroStep(_current_io);
-    WriteIORegister(_current_io);
+    command_variables.microstep = step_divisor;
 }
 
 uint8_t MotorInterface::DecodeMicroStep(uint8_t start_value)
 {
-    switch(variables.microstep)
+    switch(status_variables.microstep)
     {
         case 1:
             bitClear(start_value, M0_BIT);
@@ -180,7 +186,7 @@ uint8_t MotorInterface::DecodeMicroStep(uint8_t start_value)
             bitClear(start_value, M0_BIT);
             bitClear(start_value, M1_BIT);
             bitClear(start_value, M2_BIT);
-            variables.microstep = 1;
+            status_variables.microstep = 1;
             break;
     }
     return start_value;
@@ -188,28 +194,33 @@ uint8_t MotorInterface::DecodeMicroStep(uint8_t start_value)
 
 void MotorInterface::StartJob()
 {
-    if(FaultStatus())
+    ReadIORegister();
+
+    if(bitRead(_current_io, FAULT_BIT))
     {
-        variables.fault = true;
-        variables.running = false;
+        status_variables.fault = true;
+        status_variables.running = false;
+
         Sleep();
         Disable();
 
     } else
         {
-            variables.fault = false;
-            variables.running = true;
-            _output_state = false;
+            status_variables.fault = false;
+            status_variables.running = true;
+            status_variables.output_state = false;
+
             _pulse_on_micros = micros();
             _last_micros = _pulse_on_micros;
 
-            Wake();
-            Enable();
-            Direction(variables.direction);
-            SetMicroStep(variables.microstep);
+            bitClear(_current_io, SLEEP_BIT);
+            bitSet(_current_io, ENABLE_BIT);
+            bitWrite(_current_io, DIRECTION_BIT, status_variables.direction);
 
-            variables.pulse_interval = (variables.pulse_interval > MINIMUM_PULSE_INTERVAL && variables.pulse_interval < MAXIMUM_PULSE_INTERVAL) ? variables.pulse_interval : DEFAULT_PULSE_INTERVAL;
-            variables.pulse_on_period = (variables.pulse_on_period < variables.pulse_interval) ? variables.pulse_on_period : (unsigned long)(variables.pulse_interval/2);
+            _current_io = DecodeMicroStep(_current_io);
+
+            command_variables.pulse_interval = (command_variables.pulse_interval > MINIMUM_PULSE_INTERVAL && command_variables.pulse_interval < MAXIMUM_PULSE_INTERVAL) ? command_variables.pulse_interval : DEFAULT_PULSE_INTERVAL;
+            command_variables.pulse_on_period = (command_variables.pulse_on_period < command_variables.pulse_interval) ? command_variables.pulse_on_period : (unsigned long)(command_variables.pulse_interval/2);
 
             digitalWrite(_step_pin, LOW);
         }
@@ -217,51 +228,51 @@ void MotorInterface::StartJob()
 
 void MotorInterface::PauseJob()
 {
-    variables.running = false;
+    status_variables.running = false;
 }
 
 void MotorInterface::ResumeJob()
 {
-    variables.running = true;
+    status_variables.running = true;
     _pulse_on_micros = micros();
     _last_micros = _pulse_on_micros;
 }
 
 void MotorInterface::StopJob()
 {
-    variables.running = false;
-    _output_state = false;
-    variables.pulses_remaining = 0;
+    status_variables.running = false;
+    status_variables.output_state = false;
+    status_variables.pulses_remaining = 0;
     digitalWrite(_step_pin, LOW);
 }
 
 void MotorInterface::Update(unsigned long micros_now)
 {
-    if(_enabled)
+    if(status_variables.enabled)
     {
-        if(variables.running)
+        if(status_variables.running)
         {
-            if(variables.pulses_remaining > 0)
+            if(status_variables.pulses_remaining > 0)
             {
-                if(!_output_state)
+                if(!status_variables.output_state)
                 {
                     if(micros_now - _last_micros >= _pulse_on_micros)
                     {
                         digitalWrite(_step_pin, HIGH);
-                        _output_state = true;
-                        _pulse_off_micros = micros_now + variables.pulse_on_period;
-                        _pulse_on_micros = micros_now + variables.pulse_interval;
+                        status_variables.output_state = true;
+                        _pulse_off_micros = micros_now + command_variables.pulse_on_period;
+                        _pulse_on_micros = micros_now + command_variables.pulse_interval;
                     }
 
                 } else
                     {
                         digitalWrite(_step_pin, HIGH);
-                        _output_state = false;
-                        variables.pulses_remaining--;
+                        status_variables.output_state = false;
+                        status_variables.pulses_remaining--;
                     }
             } else
                 {
-                    variables.running = false;
+                    status_variables.running = false;
                 }
         }
 
@@ -275,13 +286,13 @@ void MotorInterface::Update(unsigned long micros_now)
 
         if(FaultStatus())
         {
-            variables.fault = true;
-            variables.running = false;
+            status_variables.fault = true;
+            status_variables.running = false;
             Disable();
 
         } else
             {
-                variables.fault = false;
+                status_variables.fault = false;
             }
     }
 }
@@ -289,11 +300,11 @@ void MotorInterface::Update(unsigned long micros_now)
 uint8_t MotorInterface::Status()
 {
     uint8_t status_byte = DecodeMicroStep(0); // Bit 2, 3 & 4
-    bitWrite(status_byte, DIRECTION_BIT, variables.direction); // Bit 0
-    bitWrite(status_byte, FAULT_BIT, variables.fault); // Bit 1
-    bitWrite(status_byte, ENABLE_BIT, _enabled); // Bit 5
-    bitWrite(status_byte, 6, variables.running); // Bit 6
-    bitWrite(status_byte, SLEEP_BIT, _sleep); // Bit 7
+    bitWrite(status_byte, DIRECTION_BIT, status_variables.direction); // Bit 0
+    bitWrite(status_byte, FAULT_BIT, status_variables.fault); // Bit 1
+    bitWrite(status_byte, ENABLE_BIT, status_variables.enabled); // Bit 5
+    bitWrite(status_byte, RUNNING_BIT, status_variables.running); // Bit 6
+    bitWrite(status_byte, SLEEP_BIT, status_variables.sleep); // Bit 7
     return status_byte;
 }
 

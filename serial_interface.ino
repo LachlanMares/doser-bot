@@ -20,34 +20,34 @@ void statusUpdate()
   unsigned char status_buffer[50];
    
   status_buffer[0] = m0.Status();
-  bytesFromUnsignedLong(m0.variables.pulses_remaining, &status_buffer[1]);
+  bytesFromUnsignedLong(m0.status_variables.pulses_remaining, &status_buffer[1]);
 
   status_buffer[5] = m1.Status();
-  bytesFromUnsignedLong(m1.variables.pulses_remaining, &status_buffer[6]);
+  bytesFromUnsignedLong(m1.status_variables.pulses_remaining, &status_buffer[6]);
 
   status_buffer[10] = m2.Status();
-  bytesFromUnsignedLong(m2.variables.pulses_remaining, &status_buffer[11]);
+  bytesFromUnsignedLong(m2.status_variables.pulses_remaining, &status_buffer[11]);
 
   status_buffer[15] = m3.Status();
-  bytesFromUnsignedLong(m3.variables.pulses_remaining, &status_buffer[16]);
+  bytesFromUnsignedLong(m3.status_variables.pulses_remaining, &status_buffer[16]);
 
   status_buffer[20] = m4.Status();
-  bytesFromUnsignedLong(m4.variables.pulses_remaining, &status_buffer[21]);
+  bytesFromUnsignedLong(m4.status_variables.pulses_remaining, &status_buffer[21]);
 
   status_buffer[25] = m5.Status();
-  bytesFromUnsignedLong(m5.variables.pulses_remaining, &status_buffer[26]);
+  bytesFromUnsignedLong(m5.status_variables.pulses_remaining, &status_buffer[26]);
 
   status_buffer[30] = m6.Status();
-  bytesFromUnsignedLong(m6.variables.pulses_remaining, &status_buffer[31]);
+  bytesFromUnsignedLong(m6.status_variables.pulses_remaining, &status_buffer[31]);
 
   status_buffer[35] = m7.Status();
-  bytesFromUnsignedLong(m7.variables.pulses_remaining, &status_buffer[36]);
+  bytesFromUnsignedLong(m7.status_variables.pulses_remaining, &status_buffer[36]);
 
   status_buffer[40] = m8.Status();
-  bytesFromUnsignedLong(m8.variables.pulses_remaining, &status_buffer[41]);
+  bytesFromUnsignedLong(m8.status_variables.pulses_remaining, &status_buffer[41]);
 
   status_buffer[45] = m9.Status();
-  bytesFromUnsignedLong(m9.variables.pulses_remaining, &status_buffer[46]);
+  bytesFromUnsignedLong(m9.status_variables.pulses_remaining, &status_buffer[46]);
 
   serialport.sendMessage(&status_buffer[0], 50);
 }
