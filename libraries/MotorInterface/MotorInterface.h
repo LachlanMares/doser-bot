@@ -15,13 +15,12 @@
 #define RUNNING_BIT 6
 #define SLEEP_BIT 7
 
-#define IO_DIRECTION 0xFD
-#define IO_STATE 0x02
+#define IO_DIRECTION 0x02  // O for output, 1 for input
+#define IO_STATE 0x00
 
 #define CW  0
 #define CCW 1
 
-#define DEFAULT_PULSE_PERIOD 250
 #define DEFAULT_PULSE_ON_PERIOD 100
 #define DEFAULT_PULSE_INTERVAL 1000
 #define MINIMUM_PULSE_INTERVAL 100
@@ -47,22 +46,20 @@
 
 
 struct motor_command_struct {
-
   boolean direction;
   uint8_t microstep;
   unsigned long pulse_interval;
   unsigned long pulses;
-  unsigned long pulse_on_period;
 };
 
 struct motor_status_struct {
   boolean enabled;
   boolean running;
-  boolean sleep;
   boolean fault;
   boolean direction;
   boolean output_state;
   uint8_t microstep;
+  unsigned long pulse_interval;
   unsigned long pulses_remaining;
 };
 
@@ -85,18 +82,17 @@ public:
         motor_status_struct status_variables;
 
 private:
-        void Wake();
-        void Sleep();
-        void Direction(uint8_t);
-        void SetMicroStep(uint8_t);
+        void Direction(bool);
         uint8_t DecodeMicroStep(uint8_t);
         void ReadIORegister();
         void WriteIORegister(uint8_t);
         void WriteDirectionRegister(uint8_t);
         void WritePullUpRegister(uint8_t);
-        uint8_t _current_io, _direction_register, _io_register, _pull_up_register, _step_divisor;
+
+        bool _reset_request;
+        uint8_t _current_io, _io_register, _pull_up_register, _direction_register;
         int _i2c_addr, _step_pin;
-        unsigned long _pulse_on_micros, _pulse_off_micros, _last_micros, _last_fault_check_micros, _fault_check_interval;
+        unsigned long _pulse_on_micros, _pulse_off_micros, _last_fault_check_micros, _fault_check_interval, _reset_micros, _pulse_on_period;
 };
 
 #endif
