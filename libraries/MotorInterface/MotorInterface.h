@@ -14,13 +14,15 @@
 #define RESET_BIT 6
 #define RUNNING_BIT 6
 #define SLEEP_BIT 7
+#define PAUSED_BIT 2
 
-#define IO_DIRECTION 0x02  // O for output, 1 for input
-#define IO_STATE 0x00
+#define IO_DIRECTION 0x02
+#define IO_STATE 0xC0
 
 #define CW  0
 #define CCW 1
 
+#define DEFAULT_PULSE_PERIOD 250
 #define DEFAULT_PULSE_ON_PERIOD 100
 #define DEFAULT_PULSE_INTERVAL 1000
 #define MINIMUM_PULSE_INTERVAL 100
@@ -46,20 +48,27 @@
 
 
 struct motor_command_struct {
+
   boolean direction;
+
   uint8_t microstep;
+
   unsigned long pulse_interval;
   unsigned long pulses;
+  unsigned long pulse_on_period;
 };
 
 struct motor_status_struct {
-  boolean enabled;
+
   boolean running;
   boolean fault;
   boolean direction;
-  boolean output_state;
+  boolean enabled;
+  boolean sleep;
+  boolean paused;
+
   uint8_t microstep;
-  unsigned long pulse_interval;
+
   unsigned long pulses_remaining;
 };
 
@@ -70,29 +79,34 @@ public:
         void Initialise(int, int, uint8_t);
         void Enable();
         void Disable();
+        void Wake();
+        void Sleep();
         void Reset();
         boolean FaultStatus();
         void StartJob();
         void PauseJob();
         void ResumeJob();
-        void StopJob();
+        void CancelJob();
         void Update(unsigned long);
         uint8_t Status();
+
         motor_command_struct command_variables;
         motor_status_struct status_variables;
+        uint8_t _current_io;
 
 private:
-        void Direction(bool);
+        void Direction(uint8_t);
+        void SetMicroStep(uint8_t);
         uint8_t DecodeMicroStep(uint8_t);
         void ReadIORegister();
         void WriteIORegister(uint8_t);
         void WriteDirectionRegister(uint8_t);
         void WritePullUpRegister(uint8_t);
 
-        bool _reset_request;
-        uint8_t _current_io, _io_register, _pull_up_register, _direction_register;
+        boolean _output_state;
+        uint8_t  _direction_register, _io_register, _pull_up_register, _step_divisor;
         int _i2c_addr, _step_pin;
-        unsigned long _pulse_on_micros, _pulse_off_micros, _last_fault_check_micros, _fault_check_interval, _reset_micros, _pulse_on_period;
+        unsigned long _pulse_on_micros, _pulse_off_micros, _last_micros, _last_fault_check_micros, _fault_check_interval;
 };
 
 #endif
